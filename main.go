@@ -111,7 +111,7 @@ func main() {
 		}
 	}
 	if err := auth.Authenticate(context.Background()); err != nil {
-		// Don't exit if we hvae a cache file; we can still serve
+		// Don't exit if we have a cache file; we can still serve
 		// whatever is in the cache.
 		//
 		// TODO: make this fatal if we get a definitive "wrong
