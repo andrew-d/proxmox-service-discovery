@@ -1,0 +1,24 @@
+package pveapi
+
+import (
+	"context"
+	"testing"
+)
+
+func TestExploreAPI(t *testing.T) {
+	const host = "https://proxmox3.70.makenorth.ca:8006"
+
+	provider := &PasswordAuthProvider{
+		proxmoxBaseURL: host,
+		user:           "root@pam",
+		password:       "password",
+	}
+	client := NewClient(host, provider)
+
+	ctx := context.Background()
+	ifaces, err := fetchFromProxmox[[]map[string]any](client, ctx, host+"/api2/json/nodes/proxmox3/network")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("network interfaces: %+v", ifaces)
+}

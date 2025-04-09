@@ -27,8 +27,8 @@ type QEMU struct {
 // QEMUConfig is the API response for the configuration of a Proxmox QEMU VM from
 // the Proxmox API /api2/json/nodes/<node>/qemu/<vmid>/config endpoint.
 type QEMUConfig struct {
-	Net0      string `json:"net0"`
-	IPConfig0 string `json:"ipconfig0"`
+	IPConfig0         string            `json:"ipconfig0"`
+	NetworkInterfaces map[string]string `json:"-"` // e.g. "net0" => "virtio,bridge=vmbr0,firewall=1"
 }
 
 // AgentInterfacesResponse is the API response for the agent interface of a Proxmox QEMU VM
@@ -65,5 +65,5 @@ type LXCInterface struct {
 // LXCConfig is the API response for the configuration of a Proxmox LXC container
 // from the Proxmox API /api2/json/nodes/<node>/lxc/<vmid>/config endpoint.
 type LXCConfig struct {
-	Net0 string `json:"net0"`
+	NetworkInterfaces map[string]string `json:"-"` // e.g. "net0" => "virtio,bridge=vmbr0,firewall=1"
 }

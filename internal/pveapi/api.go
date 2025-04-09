@@ -8,6 +8,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"strings"
 )
 
 const logResponses = false
@@ -67,19 +68,61 @@ func (c *HTTPClient) GetLXCs(ctx context.Context, node string) ([]LXC, error) {
 	return fetchFromProxmox[[]LXC](c, ctx, c.host+"/api2/json/nodes/"+node+"/lxc")
 }
 
-func (c *HTTPClient) GetQEMUConfig(ctx context.Context, node string, vmID int) (QEMUConfig, error) {
-	uri := fmt.Sprintf("%s/api2/json/nodes/%s/qemu/%d/config", c.host, node, vmID)
-	return fetchFromProxmox[QEMUConfig](c, ctx, uri)
-}
-
 func (c *HTTPClient) GetQEMUInterfaces(ctx context.Context, node string, vmID int) (AgentInterfacesResponse, error) {
 	uri := fmt.Sprintf("%s/api2/json/nodes/%s/qemu/%d/agent/network-get-interfaces", c.host, node, vmID)
 	return fetchFromProxmox[AgentInterfacesResponse](c, ctx, uri)
 }
 
+// collectWithPrefix will iterate through every entry in mm, adding the values
+// of any keys with the given prefix to the returned map so long as their value
+// is also a string.
+func collectWithPrefix(mm map[string]any, prefix string) map[string]string {
+	var ret map[string]string
+	for k, v := range mm {
+		sv, ok := v.(string)
+		if !ok {
+			continue
+		}
+		if strings.HasPrefix(k, prefix) {
+			if ret == nil {
+				ret = make(map[string]string)
+			}
+			ret[k] = sv
+		}
+	}
+	return ret
+}
+
+func (c *HTTPClient) GetQEMUConfig(ctx context.Context, node string, vmID int) (QEMUConfig, error) {
+	uri := fmt.Sprintf("%s/api2/json/nodes/%s/qemu/%d/config", c.host, node, vmID)
+	kvs, err := fetchFromProxmox[map[string]any](c, ctx, uri)
+	if err != nil {
+		return QEMUConfig{}, err
+	}
+
+	// Copy the IPConfig0 value to the struct
+	var config QEMUConfig
+	if ipConfig, ok := kvs["ipconfig0"].(string); ok {
+		config.IPConfig0 = ipConfig
+	}
+
+	// Copy any entries that start with "net" to the NetworkInterfaces map.
+	config.NetworkInterfaces = collectWithPrefix(kvs, "net")
+
+	return config, nil
+}
+
 func (c *HTTPClient) GetLXCConfig(ctx context.Context, node string, vmID int) (LXCConfig, error) {
 	uri := fmt.Sprintf("%s/api2/json/nodes/%s/lxc/%d/config", c.host, node, vmID)
-	return fetchFromProxmox[LXCConfig](c, ctx, uri)
+	kvs, err := fetchFromProxmox[map[string]any](c, ctx, uri)
+	if err != nil {
+		return LXCConfig{}, err
+	}
+
+	// Copy any entries that start with "net" to the NetworkInterfaces map.
+	var config LXCConfig
+	config.NetworkInterfaces = collectWithPrefix(kvs, "net")
+	return config, nil
 }
 
 func (c *HTTPClient) GetLXCInterfaces(ctx context.Context, node string, vmID int) ([]LXCInterface, error) {
