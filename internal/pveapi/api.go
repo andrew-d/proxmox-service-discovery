@@ -42,16 +42,18 @@ type Client interface {
 // HTTPClient is the default implementation of Client that
 // makes actual HTTP requests to the Proxmox API.
 type HTTPClient struct {
-	host string
-	auth AuthProvider
+	httpc *http.Client
+	host  string
+	auth  AuthProvider
 }
 
 // NewClient creates a new Proxmox client that communicates with the given host
 // using the Proxmox HTTP API.
-func NewClient(host string, auth AuthProvider) *HTTPClient {
+func NewClient(httpc *http.Client, host string, auth AuthProvider) *HTTPClient {
 	return &HTTPClient{
-		host: host,
-		auth: auth,
+		httpc: httpc,
+		host:  host,
+		auth:  auth,
 	}
 }
 
@@ -99,7 +101,7 @@ func fetchFromProxmox[T any](c *HTTPClient, ctx context.Context, uri string) (T,
 	}
 	c.auth.UpdateRequest(req)
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := c.httpc.Do(req)
 	if err != nil {
 		return zero, fmt.Errorf("sending HTTP request: %w", err)
 	}

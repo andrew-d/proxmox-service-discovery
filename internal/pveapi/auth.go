@@ -61,9 +61,10 @@ func (a *APITokenAuthProvider) WriteCacheKey(w io.Writer) {
 // that uses a username and password for authentication, periodically
 // refreshing the authentication ticket.
 type PasswordAuthProvider struct {
-	proxmoxBaseURL string // immutable; e.g. "https://proxmox.example.com:8006"
-	user           string // immutable; the user to authenticate as
-	password       string // immutable; the password to authenticate with
+	proxmoxBaseURL string            // immutable; e.g. "https://proxmox.example.com:8006"
+	user           string            // immutable; the user to authenticate as
+	password       string            // immutable; the password to authenticate with
+	tr             http.RoundTripper // the HTTP transport to use; nil for default
 
 	mu     sync.RWMutex
 	client *http.Client // the HTTP client to use; created on first use
@@ -71,7 +72,7 @@ type PasswordAuthProvider struct {
 	csrf   string       // the current CSRF token
 }
 
-func NewPasswordAuthProvider(proxmoxBaseURL, user, password string) (*PasswordAuthProvider, error) {
+func NewPasswordAuthProvider(tr http.RoundTripper, proxmoxBaseURL, user, password string) (*PasswordAuthProvider, error) {
 	if _, err := url.Parse(proxmoxBaseURL); err != nil {
 		return nil, fmt.Errorf("invalid Proxmox base URL: %w", err)
 	}
@@ -81,6 +82,7 @@ func NewPasswordAuthProvider(proxmoxBaseURL, user, password string) (*PasswordAu
 		proxmoxBaseURL: proxmoxBaseURL,
 		user:           user,
 		password:       password,
+		tr:             tr,
 	}, nil
 }
 
@@ -101,7 +103,8 @@ func (a *PasswordAuthProvider) getClient() (*http.Client, error) {
 			return nil, fmt.Errorf("creating cookie jar: %w", err)
 		}
 		client = &http.Client{
-			Jar: jar,
+			Transport: a.tr, // use provided transport
+			Jar:       jar,
 		}
 		a.client = client
 	}

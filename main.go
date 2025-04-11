@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -17,6 +18,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/spf13/pflag"
+	"golang.org/x/net/http2"
 
 	"github.com/andrew-d/proxmox-service-discovery/internal/buildtags"
 	"github.com/andrew-d/proxmox-service-discovery/internal/pveapi"
@@ -34,6 +36,7 @@ var (
 	dnsZone      = pflag.StringP("dns-zone", "z", "", "DNS zone to serve records for")
 	verbose      = pflag.BoolP("verbose", "v", false, "verbose output")
 	logResponses = pflag.Bool("log-responses", false, "log all responses from Proxmox")
+	tlsNoVerify  = pflag.Bool("tls-no-verify", false, "disable TLS certificate verification")
 
 	// DNS server configuration
 	addr = pflag.StringP("addr", "a", ":53", "address to listen on for DNS")
@@ -88,6 +91,24 @@ func main() {
 		}
 	}
 
+	// Create a HTTP client for use when talking to Proxmox.
+	//
+	// Disable TLS certificate verification.
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	if *tlsNoVerify {
+		transport.TLSClientConfig = &tls.Config{}
+
+		// Re-enable HTTP/2 because specifying a custom TLS config
+		// will disable HTTP/2 by default.
+		if err := http2.ConfigureTransport(transport); err != nil {
+			pvelog.Fatal(logger, "error configuring HTTP/2 transport", pvelog.Error(err))
+		}
+
+		// Actually modify the transport now that we've configured it.
+		transport.TLSClientConfig.InsecureSkipVerify = true
+	}
+	httpc := &http.Client{Transport: transport}
+
 	var rg run.Group
 
 	var auth pveapi.AuthProvider
@@ -105,7 +126,7 @@ func main() {
 		}
 	case *proxmoxPassword != "":
 		var err error
-		auth, err = pveapi.NewPasswordAuthProvider(*proxmoxHost, *proxmoxUser, *proxmoxPassword)
+		auth, err = pveapi.NewPasswordAuthProvider(transport, *proxmoxHost, *proxmoxUser, *proxmoxPassword)
 		if err != nil {
 			pvelog.Fatal(logger, "error creating password auth provider", pvelog.Error(err))
 		}
@@ -131,11 +152,12 @@ func main() {
 	}))
 
 	server, err := newServer(Options{
-		Host:      *proxmoxHost,
-		DNSZone:   *dnsZone,
-		Auth:      auth,
-		DebugAddr: *debugAddr,
-		CachePath: *cachePath,
+		Host:       *proxmoxHost,
+		DNSZone:    *dnsZone,
+		Auth:       auth,
+		DebugAddr:  *debugAddr,
+		CachePath:  *cachePath,
+		HTTPClient: httpc,
 	})
 	if err != nil {
 		pvelog.Fatal(logger, "error creating server", pvelog.Error(err))
@@ -211,6 +233,7 @@ type server struct {
 	cachePath string
 
 	dnsMux *dns.ServeMux // immutable
+	httpc  *http.Client  // immutable, for Proxmox API
 
 	// Debug HTTP server
 	debugMux     *http.ServeMux // immutable, for HTTP debug server
@@ -238,6 +261,10 @@ type Options struct {
 	DNSZone string
 	// Auth is the authentication provider to use.
 	Auth pveapi.AuthProvider
+	// HTTPClient is the HTTP client to use for making requests to Proxmox.
+	//
+	// If nil, [http.DefaultClient] will be used.
+	HTTPClient *http.Client
 	// DebugAddr is the address to listen on for the debug HTTP server.
 	//
 	// This field is optional. If empty, no debug server will be started.
@@ -265,11 +292,17 @@ func newServer(opts Options) (*server, error) {
 		return nil, fmt.Errorf("creating filter: %w", err)
 	}
 
+	httpc := opts.HTTPClient
+	if httpc == nil {
+		httpc = http.DefaultClient
+	}
+
 	s := &server{
 		host:      opts.Host,
 		dnsZone:   opts.DNSZone,
 		auth:      opts.Auth,
-		client:    pveapi.NewClient(opts.Host, opts.Auth),
+		client:    pveapi.NewClient(httpc, opts.Host, opts.Auth),
+		httpc:     httpc,
 		fc:        fc,
 		filt:      filt,
 		dnsMux:    dns.NewServeMux(),

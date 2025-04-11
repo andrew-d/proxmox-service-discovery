@@ -65,40 +65,60 @@ const baseTmplStr = `
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-        body { 
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+        :root {
+            --color-text: #333;
+            --color-heading: #2c3e50;
+            --color-link: #3498db;
+            --color-border: #eee;
+            --color-table-border: #ddd;
+            --color-light-bg: #f8f9fa;
+            --color-hover-bg: #f5f5f5;
+            --color-badge-bg: #eee;
+            --color-badge-text: white;
+            --color-info: #3498db;
+            --color-success: #2ecc71;
+            --color-warning: 243, 156, 18;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             line-height: 1.5;
             margin: 20px;
-            color: #333;
+            color: var(--color-text);
         }
-        h1, h2 { margin-top: 1em; color: #2c3e50; }
-        nav { 
+        h1, h2 { margin-top: 1em; color: var(--color-heading); }
+        nav {
             margin: 20px 0;
             padding: 10px 0;
-            border-bottom: 1px solid #eee; 
+            border-bottom: 1px solid var(--color-border);
         }
-        nav a { 
+        nav a {
             margin-right: 15px;
-            color: #3498db;
+            color: var(--color-link);
             text-decoration: none;
             font-weight: 500;
         }
         nav a:hover { text-decoration: underline; }
-        table { 
-            border-collapse: collapse; 
+        table {
+            border-collapse: collapse;
             width: 100%;
             margin: 20px 0;
         }
-        th, td { 
-            text-align: left; 
-            padding: 12px; 
-            border-bottom: 1px solid #ddd; 
+        th, td {
+            text-align: left;
+            padding: 12px;
+            border-bottom: 1px solid var(--color-table-border);
         }
-        th { 
-            background-color: #f8f9fa; 
+	tr.warning {
+	    background-color: rgba(var(--color-warning), 0.7);
+	}
+        th {
+            background-color: var(--color-light-bg);
             font-weight: 600;
         }
-        tr:hover { background-color: #f5f5f5; }
+        tr:hover { background-color: var(--color-hover-bg); }
+	tr.warning:hover {
+	    background-color: rgba(var(--color-warning), 0.9);
+	}
         .container { max-width: 1200px; margin: 0 auto; }
         .badge {
             display: inline-block;
@@ -106,14 +126,14 @@ const baseTmplStr = `
             font-size: 12px;
             font-weight: 600;
             border-radius: 3px;
-            background-color: #eee;
+            background-color: var(--color-badge-bg);
         }
-        .badge-info { background-color: #3498db; color: white; }
-        .badge-success { background-color: #2ecc71; color: white; }
-        .badge-warning { background-color: #f39c12; color: white; }
-        pre { 
-            background-color: #f8f9fa; 
-            padding: 15px; 
+        .badge-info { background-color: var(--color-info); color: var(--color-badge-text); }
+        .badge-success { background-color: var(--color-success); color: var(--color-badge-text); }
+        .badge-warning { background-color: rgb(var(--color-warning)); color: var(--color-badge-text); }
+        pre {
+            background-color: var(--color-light-bg);
+            padding: 15px;
             border-radius: 5px;
             overflow-x: auto;
         }
@@ -141,7 +161,7 @@ const homeTmplStr = `
 {{define "content"}}
     <p>Welcome to the debug interface for Proxmox Service Discovery.</p>
     <p>Use the navigation links above to access different debug pages.</p>
-    
+
     <h2>Quick Status</h2>
     <ul>
         <li>DNS Zone: {{.Server.DnsZone}}</li>
@@ -162,8 +182,11 @@ const configTmplStr = `
         <tr><td>DNS Zone</td><td>{{.Server.DnsZone}}</td></tr>
         <tr><td>Proxmox Host</td><td>{{.Server.Host}}</td></tr>
         <tr><td>Debug Address</td><td>{{.Server.DebugAddr}}</td></tr>
+	{{if .Server.TLSNoVerify}}
+        <tr class="warning"><td>TLS No Verify</td><td>Enabled</td></tr>
+	{{end}}
     </table>
-    
+
     <h2>Filter Configuration</h2>
     <table>
         <tr><th>Filter</th><th>Value</th></tr>
@@ -174,7 +197,7 @@ const configTmplStr = `
 	        <em>All</em>
 	    {{end}}
 	</td></tr>
-        
+
         <tr><td>Include Tags</td><td>
             {{if .FilterConfig.IncludeTags}}
                 {{range .FilterConfig.IncludeTags}}
@@ -184,7 +207,7 @@ const configTmplStr = `
                 <em>None</em>
             {{end}}
         </td></tr>
-        
+
         <tr><td>Include Tag Regexes</td><td>
             {{if .FilterConfig.IncludeTagsRe}}
                 {{range .FilterConfig.IncludeTagsRe}}
@@ -194,7 +217,7 @@ const configTmplStr = `
                 <em>None</em>
             {{end}}
         </td></tr>
-        
+
         <tr><td>Exclude Tags</td><td>
             {{if .FilterConfig.ExcludeTags}}
                 {{range .FilterConfig.ExcludeTags}}
@@ -204,7 +227,7 @@ const configTmplStr = `
                 <em>None</em>
             {{end}}
         </td></tr>
-        
+
         <tr><td>Exclude Tag Regexes</td><td>
             {{if .FilterConfig.ExcludeTagsRe}}
                 {{range .FilterConfig.ExcludeTagsRe}}
@@ -214,7 +237,7 @@ const configTmplStr = `
                 <em>None</em>
             {{end}}
         </td></tr>
-        
+
         <tr><td>Include CIDRs</td><td>
             {{if .FilterConfig.IncludeCIDRs}}
                 {{range .FilterConfig.IncludeCIDRs}}
@@ -224,7 +247,7 @@ const configTmplStr = `
                 <em>None</em>
             {{end}}
         </td></tr>
-        
+
         <tr><td>Exclude CIDRs</td><td>
             {{if .FilterConfig.ExcludeCIDRs}}
                 {{range .FilterConfig.ExcludeCIDRs}}
@@ -242,7 +265,7 @@ const configTmplStr = `
 const dnsTmplStr = `
 {{define "content"}}
     <h2>DNS Records <span class="badge badge-info">{{.Records | len}}</span></h2>
-    
+
     <table>
         <tr>
             <th>FQDN</th>
@@ -334,9 +357,10 @@ type dnsTemplateData struct {
 
 // serverInfo represents server information for templates
 type serverInfo struct {
-	Host      string
-	DnsZone   string
-	DebugAddr string
+	Host        string
+	DnsZone     string
+	DebugAddr   string
+	TLSNoVerify bool
 }
 
 // filterConfigInfo represents filter configuration for templates
@@ -394,6 +418,18 @@ func (s *server) handleDebugRoot(w http.ResponseWriter, r *http.Request) {
 
 // handleDebugConfig handles the configuration debug page
 func (s *server) handleDebugConfig(w http.ResponseWriter, r *http.Request) {
+	// Determine if we're verifying TLS by poking into the http client we
+	// have to see if the flag is set.
+	//
+	// TODO: this is a bit abstraction-breaking and we should figure out a
+	// better way to do this.
+	tlsNoVerify := false
+	if s.httpc != nil {
+		if tr, ok := s.httpc.Transport.(*http.Transport); ok {
+			tlsNoVerify = tr.TLSClientConfig != nil && tr.TLSClientConfig.InsecureSkipVerify
+		}
+	}
+
 	data := configTemplateData{
 		baseTemplateData: baseTemplateData{
 			Title:   "Configuration",
@@ -401,9 +437,10 @@ func (s *server) handleDebugConfig(w http.ResponseWriter, r *http.Request) {
 			IsDev:   buildtags.IsDev,
 		},
 		Server: serverInfo{
-			Host:      s.host,
-			DnsZone:   s.dnsZone,
-			DebugAddr: s.debugAddr,
+			Host:        s.host,
+			DnsZone:     s.dnsZone,
+			DebugAddr:   s.debugAddr,
+			TLSNoVerify: tlsNoVerify,
 		},
 		FilterConfig: filterConfigInfo{
 			Type:          s.fc.Type,
