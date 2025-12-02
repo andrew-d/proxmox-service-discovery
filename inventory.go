@@ -470,7 +470,7 @@ func (s *server) fetchQEMUAddrs(ctx context.Context, node string, vmID int) ([]n
 		}
 
 		// If we have a hardware address, only include addresses for that interface.
-		if hwAddr != "" && iface.HardwareAddress != hwAddr {
+		if hwAddr != "" && !strings.EqualFold(iface.HardwareAddress, hwAddr) {
 			continue
 		}
 
