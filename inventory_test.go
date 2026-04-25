@@ -10,6 +10,7 @@ import (
 	"reflect"
 	"slices"
 	"testing"
+	"text/template"
 
 	"github.com/andrew-d/proxmox-service-discovery/internal/pveapi"
 )
@@ -203,6 +204,7 @@ func TestFetchQEMUAddrs(t *testing.T) {
 				dnsZone: "example.com.",
 				auth:    &noopAuthProvider{},
 				client:  mockClient,
+				recordTemplate: template.Must(template.New("record").Parse("{{ .Name }}.{{ .Zone }}")),
 			}
 
 			// Call the function we're testing
@@ -297,6 +299,7 @@ func TestFetchLXCAddrs(t *testing.T) {
 				dnsZone: "example.com.",
 				auth:    &noopAuthProvider{},
 				client:  mockClient,
+				recordTemplate: template.Must(template.New("record").Parse("{{ .Name }}.{{ .Zone }}")),
 			}
 
 			// Call the function we're testing
@@ -387,6 +390,7 @@ func TestFetchInventory(t *testing.T) {
 		dnsZone: "example.com.",
 		auth:    &noopAuthProvider{},
 		client:  mockClient,
+		recordTemplate: template.Must(template.New("record").Parse("{{ .Name }}.{{ .Zone }}")),
 	}
 
 	// Test the function

@@ -166,6 +166,7 @@ const homeTmplStr = `
     <ul>
         <li>DNS Zone: {{.Server.DnsZone}}</li>
         <li>Proxmox Host: {{.Server.Host}}</li>
+        <li>Record Template: <code>{{.Server.RecordTemplate}}</code></li>
         <li>Records: {{.RecordCount}} DNS entries</li>
         <li>Last Updated: {{if .LastUpdated.IsZero}}Never{{else}}{{.LastUpdated.Format "2006-01-02 15:04:05"}}{{end}}</li>
         <li>Version: {{.Version}}</li>
@@ -182,6 +183,7 @@ const configTmplStr = `
         <tr><td>DNS Zone</td><td>{{.Server.DnsZone}}</td></tr>
         <tr><td>Proxmox Host</td><td>{{.Server.Host}}</td></tr>
         <tr><td>Debug Address</td><td>{{.Server.DebugAddr}}</td></tr>
+        <tr><td>Record Template</td><td><code>{{.Server.RecordTemplate}}</code></td></tr>
 	{{if .Server.TLSNoVerify}}
         <tr class="warning"><td>TLS No Verify</td><td>Enabled</td></tr>
 	{{end}}
@@ -357,10 +359,11 @@ type dnsTemplateData struct {
 
 // serverInfo represents server information for templates
 type serverInfo struct {
-	Host        string
-	DnsZone     string
-	DebugAddr   string
-	TLSNoVerify bool
+	Host           string
+	DnsZone        string
+	DebugAddr      string
+	TLSNoVerify    bool
+	RecordTemplate string
 }
 
 // filterConfigInfo represents filter configuration for templates
@@ -400,9 +403,10 @@ func (s *server) handleDebugRoot(w http.ResponseWriter, r *http.Request) {
 			IsDev:   buildtags.IsDev,
 		},
 		Server: serverInfo{
-			Host:      s.host,
-			DnsZone:   s.dnsZone,
-			DebugAddr: s.debugAddr,
+			Host:           s.host,
+			DnsZone:        s.dnsZone,
+			DebugAddr:      s.debugAddr,
+			RecordTemplate: s.recordTemplate.Tree.Root.String(),
 		},
 		RecordCount: recordCount,
 		LastUpdated: lastUpdated,
@@ -437,10 +441,11 @@ func (s *server) handleDebugConfig(w http.ResponseWriter, r *http.Request) {
 			IsDev:   buildtags.IsDev,
 		},
 		Server: serverInfo{
-			Host:        s.host,
-			DnsZone:     s.dnsZone,
-			DebugAddr:   s.debugAddr,
-			TLSNoVerify: tlsNoVerify,
+			Host:           s.host,
+			DnsZone:        s.dnsZone,
+			DebugAddr:      s.debugAddr,
+			TLSNoVerify:    tlsNoVerify,
+			RecordTemplate: s.recordTemplate.Tree.Root.String(),
 		},
 		FilterConfig: filterConfigInfo{
 			Type:          s.fc.Type,

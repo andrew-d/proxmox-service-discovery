@@ -80,6 +80,9 @@ go build
 - `--verbose`: Enable verbose logging
 - `--cache-path`: Path to cache file; if set, the program will save its state
   to this file and load it on startup if the initial fetch from Proxmox fails.
+- `--template`: Template for generating DNS records (default: `{{ .Name }}.{{ .Zone }}`).
+  Supports Go templates with fields from the resource: `.Name`, `.ID`, `.Node`, `.Type`, and `.Tags`.
+  Example: `--template='{{ if index .Tags "id-dns" }}{{ .ID }}{{ else }}{{ .Name }}{{ end }}.{{ .Zone }}'`
 
 ### TLS and Connection Options
 
