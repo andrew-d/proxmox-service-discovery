@@ -18,6 +18,7 @@ import (
 	"github.com/oklog/run"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/Masterminds/sprig/v3"
 	"github.com/spf13/pflag"
 	"golang.org/x/net/http2"
 
@@ -82,7 +83,7 @@ func main() {
 		pvelog.Fatal(logger, "--dns-zone is required")
 	}
 
-	tmpl, err := template.New("record").Parse(*recordTemplateStr)
+	tmpl, err := template.New("record").Funcs(sprig.TxtFuncMap()).Parse(*recordTemplateStr)
 	if err != nil {
 		pvelog.Fatal(logger, "invalid template", pvelog.Error(err))
 	}
