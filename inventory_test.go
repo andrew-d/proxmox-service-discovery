@@ -9,8 +9,11 @@ import (
 	"net/netip"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
+	"text/template"
 
+	"github.com/Masterminds/sprig/v3"
 	"github.com/andrew-d/proxmox-service-discovery/internal/pveapi"
 )
 
@@ -199,10 +202,11 @@ func TestFetchQEMUAddrs(t *testing.T) {
 			mockClient.qemuInterfaces["node1/100"] = tt.interfaces
 
 			s := &server{
-				host:    "https://proxmox.example.com:8006",
-				dnsZone: "example.com.",
-				auth:    &noopAuthProvider{},
-				client:  mockClient,
+				host:           "https://proxmox.example.com:8006",
+				dnsZone:        "example.com.",
+				auth:           &noopAuthProvider{},
+				client:         mockClient,
+				recordTemplate: template.Must(template.New("record").Funcs(sprig.TxtFuncMap()).Parse("{{ .Name }}.{{ .Zone }}")),
 			}
 
 			// Call the function we're testing
@@ -293,10 +297,11 @@ func TestFetchLXCAddrs(t *testing.T) {
 			mockClient.lxcInterfaces["node1/100"] = tt.interfaces
 
 			s := &server{
-				host:    "https://proxmox.example.com:8006",
-				dnsZone: "example.com.",
-				auth:    &noopAuthProvider{},
-				client:  mockClient,
+				host:           "https://proxmox.example.com:8006",
+				dnsZone:        "example.com.",
+				auth:           &noopAuthProvider{},
+				client:         mockClient,
+				recordTemplate: template.Must(template.New("record").Funcs(sprig.TxtFuncMap()).Parse("{{ .Name }}.{{ .Zone }}")),
 			}
 
 			// Call the function we're testing
@@ -383,10 +388,11 @@ func TestFetchInventory(t *testing.T) {
 
 	// Create a server with the mock client for testing
 	s := &server{
-		host:    "https://proxmox.example.com:8006",
-		dnsZone: "example.com.",
-		auth:    &noopAuthProvider{},
-		client:  mockClient,
+		host:           "https://proxmox.example.com:8006",
+		dnsZone:        "example.com.",
+		auth:           &noopAuthProvider{},
+		client:         mockClient,
+		recordTemplate: template.Must(template.New("record").Funcs(sprig.TxtFuncMap()).Parse("{{ .Name }}.{{ .Zone }}")),
 	}
 
 	// Test the function
@@ -464,5 +470,36 @@ func TestFetchInventory(t *testing.T) {
 		if !reflect.DeepEqual(res.Addrs, expectedResources[i].Addrs) {
 			t.Errorf("resource %d: got addresses %v, want %v", i, res.Addrs, expectedResources[i].Addrs)
 		}
+	}
+}
+
+func TestSprigIntegration(t *testing.T) {
+	tmplStr := "{{ .Name }}-{{ sub .ID 100 | printf \"%02d\" }}.{{ .Node }}.{{ .Zone }}"
+
+	data := struct {
+		Name string
+		ID   int
+		Node string
+		Zone string
+	}{
+		Name: "my-vm",
+		ID:   105,
+		Node: "pve1",
+		Zone: "example.com",
+	}
+
+	tmpl, err := template.New("record").Funcs(sprig.TxtFuncMap()).Parse(tmplStr)
+	if err != nil {
+		t.Fatalf("failed to parse template: %v", err)
+	}
+
+	var buf strings.Builder
+	if err := tmpl.Execute(&buf, data); err != nil {
+		t.Fatalf("failed to execute template: %v", err)
+	}
+
+	expected := "my-vm-05.pve1.example.com"
+	if buf.String() != expected {
+		t.Errorf("got %q, want %q", buf.String(), expected)
 	}
 }

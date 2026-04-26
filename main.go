@@ -11,12 +11,14 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+	"text/template"
 	"time"
 
 	"github.com/miekg/dns"
 	"github.com/oklog/run"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/Masterminds/sprig/v3"
 	"github.com/spf13/pflag"
 	"golang.org/x/net/http2"
 
@@ -37,6 +39,8 @@ var (
 	verbose      = pflag.BoolP("verbose", "v", false, "verbose output")
 	logResponses = pflag.Bool("log-responses", false, "log all responses from Proxmox")
 	tlsNoVerify  = pflag.Bool("tls-no-verify", false, "disable TLS certificate verification")
+
+	recordTemplateStr = pflag.String("template", "{{ .Name }}.{{ .Zone }}", "template for DNS records")
 
 	// DNS server configuration
 	addr = pflag.StringP("addr", "a", ":53", "address to listen on for DNS")
@@ -78,6 +82,12 @@ func main() {
 	if *dnsZone == "" {
 		pvelog.Fatal(logger, "--dns-zone is required")
 	}
+
+	tmpl, err := template.New("record").Funcs(sprig.TxtFuncMap()).Parse(*recordTemplateStr)
+	if err != nil {
+		pvelog.Fatal(logger, "invalid template", pvelog.Error(err))
+	}
+
 	if ss := *filterIncludeTags; len(ss) > 0 {
 		parsedIncludeTagsRe = make([]*regexp.Regexp, len(ss))
 		for i, s := range ss {
@@ -152,12 +162,13 @@ func main() {
 	}))
 
 	server, err := newServer(Options{
-		Host:       *proxmoxHost,
-		DNSZone:    *dnsZone,
-		Auth:       auth,
-		DebugAddr:  *debugAddr,
-		CachePath:  *cachePath,
-		HTTPClient: httpc,
+		Host:           *proxmoxHost,
+		DNSZone:        *dnsZone,
+		Auth:           auth,
+		DebugAddr:      *debugAddr,
+		CachePath:      *cachePath,
+		HTTPClient:     httpc,
+		RecordTemplate: tmpl,
 	})
 	if err != nil {
 		pvelog.Fatal(logger, "error creating server", pvelog.Error(err))
@@ -232,6 +243,8 @@ type server struct {
 	debugAddr string
 	cachePath string
 
+	recordTemplate *template.Template
+
 	dnsMux *dns.ServeMux // immutable
 	httpc  *http.Client  // immutable, for Proxmox API
 
@@ -275,6 +288,8 @@ type Options struct {
 	//
 	// This field is optional. If empty, no cache will be used.
 	CachePath string
+	// RecordTemplate is the template to use for generating DNS records.
+	RecordTemplate *template.Template
 }
 
 // newServer creates a new server instance with the given configuration
@@ -308,6 +323,8 @@ func newServer(opts Options) (*server, error) {
 		dnsMux:    dns.NewServeMux(),
 		debugAddr: opts.DebugAddr,
 		cachePath: opts.CachePath,
+
+		recordTemplate: opts.RecordTemplate,
 	}
 
 	// Initialize the DNS request handler
@@ -342,8 +359,26 @@ func (s *server) updateDNSRecords(ctx context.Context) error {
 		noAddrs []string
 		records = make(map[string]record)
 	)
+	type templateData struct {
+		pveInventoryItem
+		Zone string
+	}
+
 	for _, item := range filtered {
-		fqdn := item.Name + "." + s.dnsZone
+		var fqdnBuf strings.Builder
+		err := s.recordTemplate.Execute(&fqdnBuf, templateData{
+			pveInventoryItem: item,
+			Zone:             strings.TrimSuffix(s.dnsZone, "."),
+		})
+		if err != nil {
+			logger.Warn("failed to execute template for item", "name", item.Name, "error", err)
+			continue
+		}
+
+		fqdn := fqdnBuf.String()
+		if !strings.HasSuffix(fqdn, ".") {
+			fqdn += "."
+		}
 
 		if len(item.Addrs) == 0 {
 			logger.Warn("no addresses for resource", "fqdn", fqdn)
